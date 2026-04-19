@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
   ActualExerciseEntry,
+  BjjDetails,
   Effort,
   PhotoLog,
   PlannedExercise,
@@ -54,6 +55,7 @@ export default function SessionCard({
       ? savedLog.actual_exercises
       : buildDefaultExercises(session.exercises),
   );
+  const [bjjDetails, setBjjDetails] = useState<BjjDetails>(savedLog?.bjj_details ?? {});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -68,6 +70,7 @@ export default function SessionCard({
         ? savedLog.actual_exercises
         : buildDefaultExercises(session.exercises),
     );
+    setBjjDetails(savedLog?.bjj_details ?? {});
   }, [savedLog, session.exercises]);
 
   const paceLabel = useMemo(() => {
@@ -119,6 +122,7 @@ export default function SessionCard({
         actual_duration_min: numberOrNull(duration),
         actual_notes: notes || null,
         actual_exercises: actualExercises,
+        bjj_details: session.sessionType === "bjj" ? bjjDetails : null,
       };
 
       const response = await fetch("/api/session", {
@@ -155,11 +159,6 @@ export default function SessionCard({
                 Optional
               </span>
             ) : null}
-            {session.targetEffort ? (
-              <span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-2.5 py-1 text-xs uppercase tracking-[0.18em] text-sky-200">
-                Planned: {session.targetEffort}
-              </span>
-            ) : null}
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-300">
@@ -174,9 +173,7 @@ export default function SessionCard({
               </span>
             ) : null}
             {session.distanceKm ? (
-              <span className="rounded-full bg-white/5 px-3 py-1">
-                {session.distanceKm} km
-              </span>
+              <span className="rounded-full bg-white/5 px-3 py-1">{session.distanceKm} km</span>
             ) : null}
             {session.interval ? (
               <span className="rounded-full bg-white/5 px-3 py-1">
@@ -190,20 +187,17 @@ export default function SessionCard({
               <span className="font-medium text-white">Goal:</span> {session.goal}
             </p>
           ) : null}
-
           {session.howItShouldFeel ? (
             <p className="mt-2 text-sm text-slate-300">
               <span className="font-medium text-white">Should feel:</span>{" "}
               {session.howItShouldFeel}
             </p>
           ) : null}
-
           {session.coachingCue ? (
             <p className="mt-2 text-sm text-slate-400">
               <span className="font-medium text-white">Cue:</span> {session.coachingCue}
             </p>
           ) : null}
-
           {session.notes ? <p className="mt-2 text-sm text-slate-400">{session.notes}</p> : null}
         </div>
 
@@ -237,25 +231,11 @@ export default function SessionCard({
           <div className="mt-4 space-y-4">
             {session.exercises.map((exercise, index) => (
               <div key={exercise.id} className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-white">{exercise.name}</p>
-                    <p className="text-sm text-slate-400">
-                      Planned: {exercise.defaultSets} × {exercise.defaultReps}
-                      {exercise.repRange ? ` (${exercise.repRange})` : ""}
-                    </p>
-                  </div>
-                  {exercise.targetEffort ? (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                      {exercise.targetEffort}
-                    </span>
-                  ) : null}
-                </div>
-
-                {exercise.howItShouldFeel ? (
-                  <p className="mt-2 text-sm text-slate-400">{exercise.howItShouldFeel}</p>
-                ) : null}
-                {exercise.notes ? <p className="mt-1 text-sm text-slate-500">{exercise.notes}</p> : null}
+                <p className="font-medium text-white">{exercise.name}</p>
+                <p className="text-sm text-slate-400">
+                  Planned: {exercise.defaultSets} × {exercise.defaultReps}
+                  {exercise.repRange ? ` (${exercise.repRange})` : ""}
+                </p>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <label className="text-sm text-slate-300">
@@ -361,6 +341,67 @@ export default function SessionCard({
             </label>
           )}
 
+          {session.sessionType === "bjj" ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className="text-sm text-slate-300">
+                Technique focus
+                <input
+                  type="text"
+                  value={bjjDetails.technique_focus ?? ""}
+                  onChange={(e) =>
+                    setBjjDetails((prev) => ({ ...prev, technique_focus: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+                />
+              </label>
+
+              <label className="text-sm text-slate-300">
+                Rounds
+                <input
+                  type="number"
+                  value={bjjDetails.rounds ?? ""}
+                  onChange={(e) =>
+                    setBjjDetails((prev) => ({
+                      ...prev,
+                      rounds: numberOrNull(e.target.value) ?? undefined,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+                />
+              </label>
+
+              <label className="text-sm text-slate-300">
+                Hard rounds
+                <input
+                  type="number"
+                  value={bjjDetails.hard_rounds ?? ""}
+                  onChange={(e) =>
+                    setBjjDetails((prev) => ({
+                      ...prev,
+                      hard_rounds: numberOrNull(e.target.value) ?? undefined,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+                />
+              </label>
+
+              <label className="text-sm text-slate-300">
+                Sparring minutes
+                <input
+                  type="number"
+                  value={bjjDetails.sparring_minutes ?? ""}
+                  onChange={(e) =>
+                    setBjjDetails((prev) => ({
+                      ...prev,
+                      sparring_minutes: numberOrNull(e.target.value) ?? undefined,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+                />
+              </label>
+            </div>
+          ) : null}
+
           {paceLabel ? (
             <p className="mt-3 text-sm text-emerald-300">Estimated pace: {paceLabel}</p>
           ) : null}
@@ -371,7 +412,6 @@ export default function SessionCard({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              placeholder="How did it feel in real life, not in the fantasy version?"
               className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
             />
           </label>

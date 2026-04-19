@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(request: NextRequest) {
+  const auth = await requireUser();
+  if (!auth) return unauthorizedJson();
+
   const formData = await request.formData();
   const file = formData.get("file");
   const date = formData.get("date");

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 function fallbackSummary(date: string, rows: any[]) {
@@ -18,6 +19,9 @@ function fallbackSummary(date: string, rows: any[]) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireUser();
+  if (!auth) return unauthorizedJson();
+
   const body = await request.json();
   const date = body.date as string;
 
@@ -78,8 +82,7 @@ ${JSON.stringify(rows ?? [], null, 2)}
 
     if (response.ok) {
       const data = await response.json();
-      const text =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (typeof text === "string" && text.trim()) {
         summary = text.trim();

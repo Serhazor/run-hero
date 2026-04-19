@@ -33,20 +33,17 @@ export interface PlannedSession {
   title: string;
   timeLabel?: string;
   optional?: boolean;
-
   prescriptionMode?: PrescriptionMode;
   distanceKm?: number;
   durationMin?: number;
   durationMaxMin?: number;
   interval?: RunInterval;
-
   targetEffort?: Effort;
   howItShouldFeel?: string;
   goal?: string;
   executionSteps?: string[];
   coachingCue?: string;
   notes?: string;
-
   exercises?: PlannedExercise[];
 }
 
@@ -66,6 +63,13 @@ export interface ActualExerciseEntry {
   notes?: string;
 }
 
+export interface BjjDetails {
+  technique_focus?: string;
+  rounds?: number;
+  hard_rounds?: number;
+  sparring_minutes?: number;
+}
+
 export interface SessionLog {
   id?: string;
   log_date: string;
@@ -78,6 +82,7 @@ export interface SessionLog {
   actual_duration_min: number | null;
   actual_notes: string | null;
   actual_exercises: ActualExerciseEntry[];
+  bjj_details: BjjDetails | null;
 }
 
 export interface PhotoLog {
@@ -89,6 +94,12 @@ export interface PhotoLog {
   created_at: string;
 }
 
+export interface BodyweightLog {
+  log_date: string;
+  weight_kg: number;
+  notes: string | null;
+}
+
 export interface DayApiResponse {
   logs: SessionLog[];
   summary: string | null;
@@ -98,16 +109,21 @@ export interface DayApiResponse {
 export interface StatsApiResponse {
   totalCompletedSessions: number;
   completedRuns: number;
-  totalRunKm30d: number;
+  totalRunKm: number;
   longestRunKm: number;
   averageRunPaceMinPerKm: number | null;
-  hardSessions30d: number;
-  completionRate30d: number;
-  pullupReps30d: number;
-  dailyRunDistance14d: Array<{ date: string; km: number }>;
-  effortCounts30d: {
+  hardSessions: number;
+  completionRate: number;
+  pullupReps: number;
+  dailyRunDistanceTrend: Array<{ date: string; km: number }>;
+  effortCounts: {
     easy: number;
     moderate: number;
     hard: number;
   };
+  latestWeightKg: number | null;
+  weightChangeKg: number | null;
+  bodyweightTrend: Array<{ date: string; weightKg: number }>;
+  windowDays: string;
+  sessionType: string;
 }

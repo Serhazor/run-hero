@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import BodyweightCard from "@/components/bodyweight-card";
 import DailySummaryCard from "@/components/daily-summary-card";
 import SessionCard from "@/components/session-card";
+import WeeklySummaryCard from "@/components/weekly-summary-card";
 import { addDays, getPlannedSessionsForDate } from "@/lib/plan";
 import type { DayApiResponse, PhotoLog, SessionLog } from "@/lib/types";
 
@@ -96,6 +98,11 @@ export default function DayClient({
           </div>
         </div>
       </section>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <BodyweightCard dateIso={dateIso} />
+        <WeeklySummaryCard dateIso={dateIso} />
+      </div>
 
       <DailySummaryCard
         dateIso={dateIso}

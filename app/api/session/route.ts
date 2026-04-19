@@ -1,42 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-export async function GET(request: NextRequest) {
-  const date = request.nextUrl.searchParams.get("date");
+export async function POST(request: NextRequest) {
+  const auth = await requireUser();
+  if (!auth) return unauthorizedJson();
 
-  if (!date) {
-    return NextResponse.json({ error: "Missing date." }, { status: 400 });
+  const body = await request.json();
+
+  const payload = {
+    log_date: body.log_date,
+    session_key: body.session_key,
+    session_type: body.session_type,
+    title: body.title,
+    completed: Boolean(body.completed),
+    actual_effort: body.actual_effort ?? null,
+    actual_distance_km: body.actual_distance_km ?? null,
+    actual_duration_min: body.actual_duration_min ?? null,
+    actual_notes: body.actual_notes ?? null,
+    actual_exercises: body.actual_exercises ?? [],
+    bjj_details: body.bjj_details ?? {},
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("training_session_logs")
+    .upsert(payload, {
+      onConflict: "log_date,session_key",
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const [{ data: logs, error: logsError }, { data: summaryRow, error: summaryError }, { data: photos, error: photosError }] =
-    await Promise.all([
-      supabaseAdmin
-        .from("training_session_logs")
-        .select("*")
-        .eq("log_date", date)
-        .order("created_at", { ascending: true }),
-      supabaseAdmin
-        .from("training_day_summaries")
-        .select("summary_text")
-        .eq("log_date", date)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("training_photo_logs")
-        .select("*")
-        .eq("log_date", date)
-        .order("created_at", { ascending: false }),
-    ]);
-
-  if (logsError || summaryError || photosError) {
-    return NextResponse.json(
-      { error: logsError?.message || summaryError?.message || photosError?.message },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json({
-    logs: logs ?? [],
-    summary: summaryRow?.summary_text ?? null,
-    photos: photos ?? [],
-  });
+  return NextResponse.json({ log: data });
 }

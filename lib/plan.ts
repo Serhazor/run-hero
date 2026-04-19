@@ -1,5 +1,5 @@
-import { PlannedSession, WeekRunPlan } from "@/lib/types";
-import { RUN_WEEKS, PLAN_START_DATE, strengthAExercises, strengthBExercises } from "@/data/training-plan";
+import { PLAN_START_DATE, RUN_WEEKS, strengthAExercises, strengthBExercises } from "@/data/training-plan";
+import type { PlannedSession, WeekRunPlan } from "@/lib/types";
 
 export function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -57,6 +57,18 @@ export function getWeekNumber(isoDate: string) {
   const week = Math.floor(diffDays / 7) + 1;
 
   return Math.max(1, Math.min(week, RUN_WEEKS.length));
+}
+
+export function getWeekBounds(isoDate: string) {
+  const weekNumber = getWeekNumber(isoDate);
+  const weekStartIso = addDays(PLAN_START_DATE, (weekNumber - 1) * 7);
+  const weekEndIso = addDays(weekStartIso, 6);
+
+  return {
+    weekNumber,
+    weekStartIso,
+    weekEndIso,
+  };
 }
 
 function getRunWeek(isoDate: string): WeekRunPlan {
