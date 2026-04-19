@@ -109,6 +109,7 @@ function longRun(input: {
   notes?: string;
 }): PlannedSession {
   const isTimed = typeof input.durationMin === "number";
+  const hasInterval = isTimed && input.runMin && input.walkMin;
 
   return {
     id: input.id,
@@ -119,16 +120,16 @@ function longRun(input: {
     durationMin: input.durationMin,
     durationMaxMin: input.durationMaxMin,
     interval:
-      isTimed && input.runMin && input.walkMin
-        ? { runMin: input.runMin, walkMin: input.walkMin }
+      hasInterval
+        ? { runMin: input.runMin!, walkMin: input.walkMin! }
         : undefined,
     targetEffort: "easy",
     goal: input.goal,
     howItShouldFeel: input.feel,
-    executionSteps: isTimed
+    executionSteps: hasInterval
       ? [
           "Warm up with 5 minutes brisk walking.",
-          `Run ${input.runMin} minutes, walk ${input.walkMin} minute${input.walkMin > 1 ? "s" : ""}.`,
+          `Run ${input.runMin!} minutes, walk ${input.walkMin!} minute${input.walkMin! > 1 ? "s" : ""}.`,
           `Repeat until you reach ${input.durationMaxMin ? `${input.durationMin} to ${input.durationMaxMin}` : input.durationMin} minutes total.`,
           "Stay patient throughout the session.",
           "Cool down with 5 minutes walking.",
