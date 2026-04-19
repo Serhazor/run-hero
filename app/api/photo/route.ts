@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     });
 
   if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(uploadError) }, { status: 500 });
   }
 
   const { data: publicUrlData } = supabaseAdmin.storage
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(error) }, { status: 500 });
   }
 
   return NextResponse.json({ photo: data });

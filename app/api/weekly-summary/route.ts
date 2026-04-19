@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { getWeekBounds } from "@/lib/plan";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 
 function buildFallbackWeeklySummary(rows: any[], weightRows: any[]) {
   const completed = rows.filter((row) => row.completed);
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(error) }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -136,7 +137,7 @@ ${JSON.stringify(weightRows ?? [], null, 2)}
   );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(error) }, { status: 500 });
   }
 
   return NextResponse.json({

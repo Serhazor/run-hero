@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 
 export async function GET(request: NextRequest) {
   const auth = await requireUser();
@@ -36,7 +37,9 @@ export async function GET(request: NextRequest) {
 
   if (logsError || summaryError || photosError) {
     return NextResponse.json(
-      { error: logsError?.message || summaryError?.message || photosError?.message },
+      {
+        error: formatSupabaseError(logsError || summaryError || photosError),
+      },
       { status: 500 },
     );
   }

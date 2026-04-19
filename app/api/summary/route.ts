@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 
 function fallbackSummary(date: string, rows: any[]) {
   const completed = rows.filter((row) => row.completed);
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     .order("log_date", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(error) }, { status: 500 });
   }
 
   const currentDayRows = (rows ?? []).filter((row) => row.log_date === date);
@@ -101,7 +102,7 @@ ${JSON.stringify(rows ?? [], null, 2)}
     );
 
   if (saveError) {
-    return NextResponse.json({ error: saveError.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(saveError) }, { status: 500 });
   }
 
   return NextResponse.json({ summary });

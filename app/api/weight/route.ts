@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 
 export async function GET(request: NextRequest) {
   const auth = await requireUser();
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(error) }, { status: 500 });
   }
 
   return NextResponse.json({ log: data ?? null });
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatSupabaseError(error) }, { status: 500 });
   }
 
   return NextResponse.json({ log: data });

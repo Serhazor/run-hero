@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 
 export async function GET() {
   const auth = await requireUser();
@@ -18,7 +19,7 @@ export async function GET() {
 
   if (photosError || weightsError) {
     return NextResponse.json(
-      { error: photosError?.message || weightsError?.message },
+      { error: formatSupabaseError(photosError || weightsError) },
       { status: 500 },
     );
   }

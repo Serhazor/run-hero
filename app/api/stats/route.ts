@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, unauthorizedJson } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatSupabaseError } from "@/lib/supabase-error";
 import type { StatsApiResponse } from "@/lib/types";
 
 function getIsoDaysAgo(daysAgo: number) {
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   if (logsError || weightsError) {
     return NextResponse.json(
-      { error: logsError?.message || weightsError?.message },
+      { error: formatSupabaseError(logsError || weightsError) },
       { status: 500 },
     );
   }
