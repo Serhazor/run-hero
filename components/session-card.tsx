@@ -137,6 +137,7 @@ export default function SessionCard({
   onPhotoUploaded: (photo: PhotoLog) => void;
 }) {
   const previousIdentityRef = useRef<string>("");
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [completed, setCompleted] = useState(savedLog?.completed ?? false);
   const [effort, setEffort] = useState<Effort | null>(
@@ -164,6 +165,8 @@ export default function SessionCard({
   const [strokes, setStrokes] = useState<string[]>([]);
   const [strokeLoading, setStrokeLoading] = useState(false);
   const [strokeError, setStrokeError] = useState("");
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsError, setTtsError] = useState("");
 
   useEffect(() => {
     setCompleted(savedLog?.completed ?? false);
@@ -182,6 +185,7 @@ export default function SessionCard({
     if (previousIdentityRef.current !== identity) {
       setStrokes([]);
       setStrokeError("");
+      setTtsError("");
       previousIdentityRef.current = identity;
     }
   }, [savedLog, session.exercises, dateIso, session.id]);
@@ -225,7 +229,7 @@ export default function SessionCard({
     );
   }
 
-  function speakStrokes(lines: string[]) {
+  function speakStrokesWithBrowser(lines: string[]) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     if (!lines.length) return;
 
@@ -239,6 +243,51 @@ export default function SessionCard({
       utterance.volume = 0.98;
       window.speechSynthesis.speak(utterance);
     });
+  }
+
+  async function playGeminiTts(lines: string[]) {
+    setTtsLoading(true);
+    setTtsError("");
+
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ strokes: lines }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Gemini TTS failed:", response.status, errorText);
+        setTtsError(`Gemini TTS failed: ${response.status}`);
+        speakStrokesWithBrowser(lines);
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+      }
+
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error("Gemini TTS crashed:", error);
+      setTtsError("Gemini TTS crashed. Falling back to browser voice.");
+      speakStrokesWithBrowser(lines);
+    } finally {
+      setTtsLoading(false);
+    }
   }
 
   async function generateStrokes() {
@@ -287,7 +336,7 @@ export default function SessionCard({
 
       if (lines.length === 2) {
         setStrokes(lines);
-        speakStrokes(lines);
+        await playGeminiTts(lines);
       } else {
         console.error("Strokes response did not contain 2 lines:", data);
         setStrokeError("Stroke response was invalid.");
@@ -304,6 +353,7 @@ export default function SessionCard({
     setSaving(true);
     setMessage("");
     setStrokeError("");
+    setTtsError("");
 
     const finalCompleted = autoComplete || completed;
 
@@ -680,12 +730,22 @@ export default function SessionCard({
 
             {strokeLoading ? (
               <p className="mt-3 text-sm text-slate-400">
-                Generating spoken strokes...
+                Generating strokes...
+              </p>
+            ) : null}
+
+            {ttsLoading ? (
+              <p className="mt-2 text-sm text-slate-400">
+                Generating Gemini voice...
               </p>
             ) : null}
 
             {strokeError ? (
               <p className="mt-3 text-sm text-orange-300">{strokeError}</p>
+            ) : null}
+
+            {ttsError ? (
+              <p className="mt-2 text-sm text-orange-300">{ttsError}</p>
             ) : null}
 
             {strokes.length ? (
@@ -697,7 +757,7 @@ export default function SessionCard({
 
                   <button
                     type="button"
-                    onClick={() => speakStrokes(strokes)}
+                    onClick={() => playGeminiTts(strokes)}
                     className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200"
                   >
                     Play again

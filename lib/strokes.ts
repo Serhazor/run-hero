@@ -12,137 +12,294 @@ export type StrokeContext = {
   consistencyContext: string;
 };
 
-const fallbackLibrary = {
-  general: [
-    "You showed up and did the work.",
-    "That session counts. Nice consistency.",
-    "Good job keeping the promise to yourself.",
-    "Another step forward. Keep stacking them.",
-    "You got it done, and that matters.",
-    "Solid work today. That builds momentum.",
-  ],
-  strength: [
-    "Good session. Strength grows from work like this.",
-    "You moved with purpose today. That matters.",
-    "That was useful work, not just effort.",
-    "Strong session. The foundation is improving.",
-    "You trained with intent today. Keep that.",
-    "Good work reinforcing strength without chasing fatigue.",
-  ],
-  run: [
-    "That was steady work. Your engine is improving.",
-    "Good aerobic session. Base fitness is built like this.",
-    "Calm, consistent effort. Exactly what was needed.",
-    "You stayed patient and did real endurance work.",
-    "That session will pay off over time.",
-    "Good job building capacity without forcing it.",
-  ],
-  bjj: [
-    "Good work on the mats today.",
-    "That session added experience, not just sweat.",
-    "You kept showing up to the craft.",
-    "Technique grows through sessions like this.",
-    "You put honest time into your game today.",
-    "Another mat session banked. Keep building.",
-  ],
-  recovery: [
-    "Recovery work counts too. Good call.",
-    "Smart session. You trained without digging a hole.",
-    "You respected recovery and still moved forward.",
-    "Good discipline today. Not every win is hard.",
-    "That was measured, sensible work.",
-    "You did what was needed today.",
-  ],
-  hard: [
-    "That was a tough session, and you stayed with it.",
-    "You handled hard work well today.",
-    "Strong effort. You did not drift or quit.",
-    "You stayed engaged when it got difficult.",
-    "That was demanding work. You answered it well.",
-    "Good grit today. Controlled and useful.",
-  ],
-  easy: [
-    "You kept the routine alive today.",
-    "Easy work done properly still moves you forward.",
-    "That was the right amount of work today.",
-    "You stayed disciplined without forcing the pace.",
-    "Good job keeping the session honest.",
-    "That was calm, useful work.",
-  ],
-};
+const weakPatterns = [
+  /ты завершил/i,
+  /ещ[её] одна ценная/i,
+  /ценная сессия/i,
+  /эта сессия/i,
+  /эта тренировка/i,
+  /ты потренировался/i,
+  /ты сделал тренировку/i,
+  /это улучшает/i,
+  /это помогает/i,
+  /практика развивает/i,
+  /развивает технику/i,
+  /улучшает технику/i,
+  /полезное внимание/i,
+  /пользу для твоего/i,
+  /для твоего bjj/i,
+  /для bjj/i,
+  /кардио/i,
+  /силовая работа сегодня/i,
+  /ты поработал сегодня/i,
+  /ты сделал сегодня/i,
+  /ты завершил тренировку/i,
+  /ты завершил ещё одну/i,
+  /сессия/i,
+  /тренировк/i,
+];
 
-function pickTwoDistinct(items: string[]) {
-  const copy = [...items];
-  const firstIndex = Math.floor(Math.random() * copy.length);
-  const first = copy.splice(firstIndex, 1)[0];
-  const secondIndex = Math.floor(Math.random() * copy.length);
-  const second = copy[secondIndex];
-  return [first, second];
+const bannedStarts = [
+  "ты завершил",
+  "ещё одна",
+  "еще одна",
+  "эта сессия",
+  "эта тренировка",
+  "ты потренировался",
+  "ты сделал тренировку",
+  "сегодняшняя тренировка",
+];
+
+function wordCount(line: string) {
+  return line
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function normalizeLine(line: string) {
+  return line
+    .replace(/^[-•\d.\s]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isWeakStroke(line: string) {
+  const trimmed = normalizeLine(line);
+  const lower = trimmed.toLowerCase();
+
+  if (!trimmed) return true;
+  if (wordCount(trimmed) < 5) return true;
+  if (wordCount(trimmed) > 14) return true;
+
+  if (bannedStarts.some((start) => lower.startsWith(start))) {
+    return true;
+  }
+
+  if (weakPatterns.some((pattern) => pattern.test(trimmed))) {
+    return true;
+  }
+
+  return false;
+}
+
+function isUniversalSecondLine(line: string) {
+  const trimmed = normalizeLine(line);
+  const lower = trimmed.toLowerCase();
+
+  if (!trimmed.includes("Серёжа") && !trimmed.includes("Сережа")) {
+    return false;
+  }
+
+  const forbiddenSecondLinePatterns = [
+    /bjj/i,
+    /бжж/i,
+    /кардио/i,
+    /бег/i,
+    /сил/i,
+    /восстанов/i,
+    /техник/i,
+    /защит/i,
+    /удуш/i,
+    /ковр/i,
+    /мат/i,
+    /база/i,
+    /трениров/i,
+    /сесси/i,
+    /нагруз/i,
+  ];
+
+  if (forbiddenSecondLinePatterns.some((pattern) => pattern.test(lower))) {
+    return false;
+  }
+
+  return true;
 }
 
 export function buildStrokePrompt(context: StrokeContext) {
   return `
-You are writing two short positive strokes for a training tracking app.
-These lines will be spoken aloud using browser voice after the user saves a completed session.
+Ты пишешь две короткие позитивные реплики для приложения тренировок.
+Они будут озвучены после завершённой тренировки.
 
-Write exactly 2 lines.
+Это не отчёт и не summary.
+Это короткие психологические strokes: спокойное, человеческое признание усилия, дисциплины, полезной работы или стабильности.
 
-Rules:
-- Each line must be between 6 and 12 words
-- Keep the language simple and natural for speech
-- The first line should acknowledge effort or completion
-- The second line should reflect something specific about the session
-- Focus on consistency, discipline, technique, endurance, recovery, or strength
-- Match the session type and difficulty
-- Sound supportive, calm, and credible
-- Avoid clichés like beast mode, crushed it, no excuses, warrior
-- Avoid overpraise for light or recovery sessions
-- Avoid repeating the same structure too often
-- Avoid emojis, hashtags, bullet points, quotation marks, sarcasm
-- Do not mention AI, app, database, logging, or saving
-- Do not sound like a therapist or drill sergeant
+Напиши ровно 2 строки.
 
-Session:
-Type: ${context.trainingType}
-Title: ${context.title}
-Duration: ${context.duration ?? "unknown"}
-Intensity: ${context.intensity ?? "unknown"}
-Details: ${context.distanceOrVolume}
-Notes: ${context.notes || "none"}
-Goal: ${context.goal || "none"}
-Planned status: ${context.plannedStatus}
-Consistency context: ${context.consistencyContext}
+Строгие правила:
+- Пиши только по-русски
+- Каждая строка должна быть от 5 до 12 слов
+- Первая строка должна быть связана именно с этой тренировкой
+- Вторая строка должна быть универсальной, личной и не зависеть от типа тренировки
+- Вторая строка должна обращаться по имени "Серёжа"
+- Вторая строка не должна упоминать BJJ, силу, бег, кардио, технику, восстановление или детали сессии
+- Тон должен быть спокойный, тёплый, уважительный, уверенный
+- Нельзя писать как тренерский отчёт, уведомление приложения или сухое описание
+- Не пересказывай очевидное
+- Не объясняй тренировочную логику в лоб
+- Не используй пафос, лозунги, клише, сленг, сарказм, эмодзи, кавычки, хэштеги
+- Избегай фраз типа:
+  "ты завершил тренировку"
+  "ещё одна ценная сессия"
+  "это улучшает"
+  "это помогает"
+  "практика развивает"
+  "ты потренировался"
+  "ты сделал тренировку"
+  "эта сессия"
+
+Хорошие примеры первой строки:
+Хорошая работа. Ты дал делу нужное усилие
+Это была полезная работа, не пустая нагрузка
+Ты сегодня поработал по делу
+Хорошая тренировка. В ней был смысл
+Ты не просто отметился, ты вложился
+
+Хорошие примеры второй строки:
+Серёжа, вот так и строится настоящая стабильность
+Серёжа, именно из таких дней всё и складывается
+Серёжа, ты становишься надёжнее с каждым таким днём
+Серёжа, ты спокойно строишь то, что потом будет держать
+Серёжа, в этом и появляется настоящая внутренняя опора
+
+Контекст:
+Тип: ${context.trainingType}
+Название: ${context.title}
+Интенсивность: ${context.intensity ?? "unknown"}
+Длительность: ${context.duration ?? "unknown"}
+Объём: ${context.distanceOrVolume}
+Заметки: ${context.notes || "none"}
+Статус: ${context.plannedStatus}
+Цель: ${context.goal || "none"}
+Контекст стабильности: ${context.consistencyContext}
 `.trim();
 }
 
 export function parseStrokeText(text: string) {
-  const lines = text
+  const rawLines = text
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^[-•\d.\s]+/, "").trim())
+    .map(normalizeLine)
     .filter(Boolean);
 
-  return lines.slice(0, 2);
+  const unique: string[] = [];
+  for (const line of rawLines) {
+    if (!unique.some((existing) => existing.toLowerCase() === line.toLowerCase())) {
+      unique.push(line);
+    }
+  }
+
+  const firstCandidates = unique.filter(
+    (line) => !isWeakStroke(line) && !isUniversalSecondLine(line),
+  );
+
+  const secondCandidates = unique.filter(
+    (line) => !isWeakStroke(line) && isUniversalSecondLine(line),
+  );
+
+  const first = firstCandidates[0];
+  const second = secondCandidates[0];
+
+  if (first && second) {
+    return [first, second];
+  }
+
+  return [];
 }
 
+function pickRandom(pool: string[], exclude?: string) {
+  const filtered = exclude
+    ? pool.filter((item) => item.toLowerCase() !== exclude.toLowerCase())
+    : pool;
+
+  if (!filtered.length) {
+    return pool[0];
+  }
+
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
+const sessionSpecificPools = {
+  run: [
+    "Спокойная, полезная работа. Всё было по делу.",
+    "Хорошая работа. Ты дал базе нужное внимание.",
+    "Ты сегодня поработал спокойно и правильно.",
+    "Это была полезная нагрузка, не пустая суета.",
+    "Хороший день. Работа была честной и нужной.",
+    "Ты дал работе именно тот ритм, который был нужен.",
+  ],
+  strength: [
+    "Хорошая силовая работа. День не ушёл впустую.",
+    "Ты дал телу нужную силовую нагрузку.",
+    "Это была крепкая, полезная работа.",
+    "Хорошая работа. В ней был реальный смысл.",
+    "Ты сегодня поработал с нормальным намерением.",
+    "Ты вложился в то, что потом будет держать.",
+  ],
+  bjj: [
+    "Хорошая работа. Ты дал своей игре нужное внимание.",
+    "Это было полезное время на ковре.",
+    "Ты сегодня вложился в свою игру не зря.",
+    "Хорошая работа. В ней был реальный смысл.",
+    "Ты не просто пришёл, ты поработал по делу.",
+    "Ты дал важной части своей игры нормальное внимание.",
+  ],
+  recovery: [
+    "Хорошая работа. Ты сделал именно то, что нужно.",
+    "Это был разумный и полезный день.",
+    "Ты сегодня не перегнул и сделал правильно.",
+    "Спокойная работа, но очень нужная.",
+    "Хороший выбор. Такая работа тоже двигает вперёд.",
+    "Ты дал себе ровно то, что сейчас было нужно.",
+  ],
+  sauna: [
+    "Хорошая работа. Ты дал телу восстановиться вовремя.",
+    "Это был полезный и спокойный шаг.",
+    "Ты сегодня выбрал не суету, а пользу.",
+    "Хороший день. Восстановление тоже считается.",
+    "Ты сделал то, что действительно было нужно.",
+    "Ты не перегнул и выбрал правильный ритм.",
+  ],
+  general: [
+    "Хорошая работа. Ты дал делу нужное усилие.",
+    "Это была полезная работа, не пустая нагрузка.",
+    "Ты сегодня поработал по делу.",
+    "Хорошая работа. В ней был смысл.",
+    "Ты не просто отметился, ты вложился.",
+    "Ты дал дню полезное и честное усилие.",
+  ],
+};
+
+const universalSeryozhaPool = [
+  "Серёжа, вот так и строится настоящая стабильность.",
+  "Серёжа, именно из таких дней всё и складывается.",
+  "Серёжа, ты становишься надёжнее с каждым таким днём.",
+  "Серёжа, ты спокойно строишь то, что потом будет держать.",
+  "Серёжа, в этом и появляется настоящая внутренняя опора.",
+  "Серёжа, ты уже делаешь это частью себя.",
+  "Серёжа, такие шаги дают настоящую опору на будущее.",
+  "Серёжа, вот так и собирается серьёзный результат.",
+  "Серёжа, ты двигаешься правильно, даже когда тихо.",
+  "Серёжа, такие дни значат больше, чем кажется.",
+  "Серёжа, именно так и появляется внутренняя надёжность.",
+  "Серёжа, ты постепенно собираешь себя в одно целое.",
+];
+
 export function getFallbackStrokes(context: StrokeContext) {
-  const primaryPool =
+  const firstPool =
     context.trainingType === "run"
-      ? fallbackLibrary.run
+      ? sessionSpecificPools.run
       : context.trainingType === "strength"
-        ? fallbackLibrary.strength
+        ? sessionSpecificPools.strength
         : context.trainingType === "bjj"
-          ? fallbackLibrary.bjj
-          : fallbackLibrary.recovery;
+          ? sessionSpecificPools.bjj
+          : context.trainingType === "recovery"
+            ? sessionSpecificPools.recovery
+            : context.trainingType === "sauna"
+              ? sessionSpecificPools.sauna
+              : sessionSpecificPools.general;
 
-  const effortPool =
-    context.intensity === "hard"
-      ? fallbackLibrary.hard
-      : fallbackLibrary.easy;
+  const first = pickRandom(firstPool);
+  const second = pickRandom(universalSeryozhaPool);
 
-  const [one] = pickTwoDistinct(primaryPool);
-  const [two] = pickTwoDistinct(effortPool);
-
-  return [one, two];
+  return [first, second];
 }
