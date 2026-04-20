@@ -2,7 +2,11 @@
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
-export default function SignOutButton() {
+export default function SignOutButton({
+  className = "",
+}: {
+  className?: string;
+}) {
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
     await supabase.auth.signOut();
@@ -13,7 +17,7 @@ export default function SignOutButton() {
     <button
       type="button"
       onClick={signOut}
-      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
+      className={`inline-flex items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10 ${className}`}
     >
       Logout
     </button>

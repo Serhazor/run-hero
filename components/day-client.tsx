@@ -61,14 +61,14 @@ export default function DayClient({
   const completedCount = logs.filter((log) => log.completed).length;
 
   return (
-    <div className="space-y-6">
-      <section className="card-shell rounded-[32px] p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-5 md:space-y-6">
+      <section className="card-shell rounded-[24px] p-4 md:rounded-[32px] md:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-sky-300/80">
               Week {weekNumber}
             </p>
-            <h2 className="mt-2 text-3xl font-bold text-white [font-family:var(--font-display)]">
+            <h2 className="mt-2 text-2xl font-bold text-white [font-family:var(--font-display)] md:text-3xl">
               {pageTitle}
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-slate-400">
@@ -81,7 +81,7 @@ export default function DayClient({
               href={`/day/${addDays(dateIso, -1)}`}
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
             >
-              Previous day
+              Previous
             </Link>
             <Link
               href="/calendar"
@@ -93,16 +93,11 @@ export default function DayClient({
               href={`/day/${addDays(dateIso, 1)}`}
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
             >
-              Next day
+              Next
             </Link>
           </div>
         </div>
       </section>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <BodyweightCard dateIso={dateIso} />
-        <WeeklySummaryCard dateIso={dateIso} />
-      </div>
 
       <DailySummaryCard
         dateIso={dateIso}
@@ -111,12 +106,12 @@ export default function DayClient({
       />
 
       {loading ? (
-        <section className="card-shell rounded-[28px] p-6 text-sm text-slate-400">
+        <section className="card-shell rounded-[24px] p-4 text-sm text-slate-400 md:rounded-[28px] md:p-6">
           Loading day data...
         </section>
       ) : null}
 
-      <div className="grid gap-5">
+      <div className="grid gap-4 md:gap-5">
         {sessions.map((session) => (
           <SessionCard
             key={session.id}
@@ -128,6 +123,11 @@ export default function DayClient({
             onPhotoUploaded={handlePhotoUploaded}
           />
         ))}
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <BodyweightCard dateIso={dateIso} />
+        <WeeklySummaryCard dateIso={dateIso} />
       </div>
     </div>
   );
