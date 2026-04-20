@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActualExerciseEntry,
   BjjDetails,
@@ -19,8 +19,11 @@ function numberOrNull(value: string) {
   return Number.isFinite(num) && value !== "" ? num : null;
 }
 
-function buildDefaultExercises(exercises: PlannedExercise[] | undefined): ActualExerciseEntry[] {
+function buildDefaultExercises(
+  exercises: PlannedExercise[] | undefined,
+): ActualExerciseEntry[] {
   if (!exercises?.length) return [];
+
   return exercises.map((exercise) => ({
     name: exercise.name,
     sets: exercise.defaultSets,
@@ -51,7 +54,9 @@ function ExerciseEditor({
             {exercise.repRange ? ` (${exercise.repRange})` : ""}
           </p>
           {exercise.howItShouldFeel ? (
-            <p className="mt-1 text-xs text-slate-500">{exercise.howItShouldFeel}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {exercise.howItShouldFeel}
+            </p>
           ) : null}
         </div>
 
@@ -131,21 +136,34 @@ export default function SessionCard({
   onSaved: (log: SessionLog) => void;
   onPhotoUploaded: (photo: PhotoLog) => void;
 }) {
+  const previousIdentityRef = useRef<string>("");
+
   const [completed, setCompleted] = useState(savedLog?.completed ?? false);
-  const [effort, setEffort] = useState<Effort | null>(savedLog?.actual_effort ?? null);
-  const [distance, setDistance] = useState(savedLog?.actual_distance_km?.toString() ?? "");
-  const [duration, setDuration] = useState(savedLog?.actual_duration_min?.toString() ?? "");
+  const [effort, setEffort] = useState<Effort | null>(
+    savedLog?.actual_effort ?? null,
+  );
+  const [distance, setDistance] = useState(
+    savedLog?.actual_distance_km?.toString() ?? "",
+  );
+  const [duration, setDuration] = useState(
+    savedLog?.actual_duration_min?.toString() ?? "",
+  );
   const [notes, setNotes] = useState(savedLog?.actual_notes ?? "");
   const [actualExercises, setActualExercises] = useState<ActualExerciseEntry[]>(
     savedLog?.actual_exercises?.length
       ? savedLog.actual_exercises
       : buildDefaultExercises(session.exercises),
   );
-  const [bjjDetails, setBjjDetails] = useState<BjjDetails>(savedLog?.bjj_details ?? {});
+  const [bjjDetails, setBjjDetails] = useState<BjjDetails>(
+    savedLog?.bjj_details ?? {},
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [showPlan, setShowPlan] = useState(false);
   const [showLog, setShowLog] = useState(true);
+  const [strokes, setStrokes] = useState<string[]>([]);
+  const [strokeLoading, setStrokeLoading] = useState(false);
+  const [strokeError, setStrokeError] = useState("");
 
   useEffect(() => {
     setCompleted(savedLog?.completed ?? false);
@@ -159,13 +177,22 @@ export default function SessionCard({
         : buildDefaultExercises(session.exercises),
     );
     setBjjDetails(savedLog?.bjj_details ?? {});
-  }, [savedLog, session.exercises]);
+
+    const identity = `${dateIso}-${session.id}`;
+    if (previousIdentityRef.current !== identity) {
+      setStrokes([]);
+      setStrokeError("");
+      previousIdentityRef.current = identity;
+    }
+  }, [savedLog, session.exercises, dateIso, session.id]);
 
   const paceLabel = useMemo(() => {
     const d = Number(distance);
     const t = Number(duration);
 
-    if (!Number.isFinite(d) || !Number.isFinite(t) || d <= 0 || t <= 0) return null;
+    if (!Number.isFinite(d) || !Number.isFinite(t) || d <= 0 || t <= 0) {
+      return null;
+    }
 
     const paceMin = t / d;
     const whole = Math.floor(paceMin);
@@ -176,7 +203,11 @@ export default function SessionCard({
     return `${whole}:${seconds} / km`;
   }, [distance, duration]);
 
-  function updateExercise(index: number, field: keyof ActualExerciseEntry, value: string) {
+  function updateExercise(
+    index: number,
+    field: keyof ActualExerciseEntry,
+    value: string,
+  ) {
     setActualExercises((prev) =>
       prev.map((item, i) =>
         i === index
@@ -194,9 +225,87 @@ export default function SessionCard({
     );
   }
 
-  async function saveSession() {
+  function speakStrokes(lines: string[]) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!lines.length) return;
+
+    window.speechSynthesis.cancel();
+
+    lines.forEach((line) => {
+      const utterance = new SpeechSynthesisUtterance(line);
+      utterance.lang = "en-IE";
+      utterance.rate = 0.98;
+      utterance.pitch = 1;
+      utterance.volume = 0.98;
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+
+  async function generateStrokes() {
+    setStrokeLoading(true);
+    setStrokeError("");
+
+    try {
+      const distanceOrVolume =
+        session.sessionType === "run"
+          ? `${distance || session.distanceKm || "unknown"} km`
+          : session.exercises?.length
+            ? `${actualExercises.length} exercises`
+            : `${duration || session.durationMin || "unknown"} min`;
+
+      const plannedStatus = session.optional ? "optional" : "planned";
+      const consistencyContext =
+        "Keep the routine alive and keep momentum steady.";
+
+      const response = await fetch("/api/strokes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          trainingType: session.sessionType,
+          title: session.title,
+          intensity: effort,
+          duration: numberOrNull(duration),
+          distanceOrVolume,
+          notes: notes || "",
+          plannedStatus,
+          goal: session.goal || "",
+          consistencyContext,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Strokes request failed:", response.status, errorText);
+        setStrokeError(`Stroke generation failed: ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+      const lines = Array.isArray(data.strokes) ? data.strokes : [];
+
+      if (lines.length === 2) {
+        setStrokes(lines);
+        speakStrokes(lines);
+      } else {
+        console.error("Strokes response did not contain 2 lines:", data);
+        setStrokeError("Stroke response was invalid.");
+      }
+    } catch (error) {
+      console.error("Stroke generation crashed:", error);
+      setStrokeError("Stroke generation crashed.");
+    } finally {
+      setStrokeLoading(false);
+    }
+  }
+
+  async function saveSession(autoComplete = false) {
     setSaving(true);
     setMessage("");
+    setStrokeError("");
+
+    const finalCompleted = autoComplete || completed;
 
     try {
       const payload: SessionLog = {
@@ -204,7 +313,7 @@ export default function SessionCard({
         session_key: session.id,
         session_type: session.sessionType,
         title: session.title,
-        completed,
+        completed: finalCompleted,
         actual_effort: effort,
         actual_distance_km: numberOrNull(distance),
         actual_duration_min: numberOrNull(duration),
@@ -220,13 +329,23 @@ export default function SessionCard({
       });
 
       if (!response.ok) {
-        throw new Error("Save failed.");
+        const errorText = await response.text();
+        throw new Error(errorText || "Save failed.");
       }
 
       const data = await response.json();
+
+      setCompleted(finalCompleted);
       onSaved(data.log);
-      setMessage("Saved.");
+      setMessage(finalCompleted ? "Completed and saved." : "Saved.");
+
+      if (finalCompleted) {
+        await generateStrokes();
+      } else {
+        setStrokes([]);
+      }
     } catch (err) {
+      console.error("Save session failed:", err);
       setMessage(err instanceof Error ? err.message : "Failed.");
     } finally {
       setSaving(false);
@@ -238,7 +357,9 @@ export default function SessionCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold text-white md:text-xl">{session.title}</h3>
+            <h3 className="text-lg font-semibold text-white md:text-xl">
+              {session.title}
+            </h3>
 
             <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300 md:text-xs">
               {session.sessionType}
@@ -253,8 +374,11 @@ export default function SessionCard({
 
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300 md:text-sm">
             {session.timeLabel ? (
-              <span className="rounded-full bg-white/5 px-3 py-1">Time: {session.timeLabel}</span>
+              <span className="rounded-full bg-white/5 px-3 py-1">
+                Time: {session.timeLabel}
+              </span>
             ) : null}
+
             {session.durationMin ? (
               <span className="rounded-full bg-white/5 px-3 py-1">
                 {session.durationMaxMin
@@ -262,14 +386,19 @@ export default function SessionCard({
                   : `${session.durationMin} min`}
               </span>
             ) : null}
+
             {session.distanceKm ? (
-              <span className="rounded-full bg-white/5 px-3 py-1">{session.distanceKm} km</span>
+              <span className="rounded-full bg-white/5 px-3 py-1">
+                {session.distanceKm} km
+              </span>
             ) : null}
+
             {session.interval ? (
               <span className="rounded-full bg-white/5 px-3 py-1">
                 {session.interval.runMin}:{session.interval.walkMin} run/walk
               </span>
             ) : null}
+
             {session.targetEffort ? (
               <span className="rounded-full bg-sky-400/10 px-3 py-1 text-sky-200">
                 Planned: {session.targetEffort}
@@ -278,17 +407,31 @@ export default function SessionCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCompleted((v) => !v)}
-          className={`shrink-0 rounded-2xl px-4 py-2 text-sm font-medium transition ${
-            completed
-              ? "bg-emerald-400 text-slate-950"
-              : "border border-white/10 bg-white/10 text-slate-200 hover:bg-white/15"
-          }`}
-        >
-          {completed ? "Completed" : "Complete"}
-        </button>
+        <div className="shrink-0 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (!completed) setCompleted(true);
+            }}
+            className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+              completed
+                ? "bg-emerald-400 text-slate-950"
+                : "border border-white/10 bg-white/10 text-slate-200 hover:bg-white/15"
+            }`}
+          >
+            {completed ? "Completed" : "Mark complete"}
+          </button>
+
+          {completed ? (
+            <button
+              type="button"
+              onClick={() => setCompleted(false)}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/10"
+            >
+              Undo
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -326,11 +469,14 @@ export default function SessionCard({
 
           {session.coachingCue ? (
             <p className="mt-2 text-sm text-slate-400">
-              <span className="font-medium text-white">Cue:</span> {session.coachingCue}
+              <span className="font-medium text-white">Cue:</span>{" "}
+              {session.coachingCue}
             </p>
           ) : null}
 
-          {session.notes ? <p className="mt-2 text-sm text-slate-400">{session.notes}</p> : null}
+          {session.notes ? (
+            <p className="mt-2 text-sm text-slate-400">{session.notes}</p>
+          ) : null}
 
           {session.executionSteps?.length ? (
             <div className="mt-4">
@@ -356,7 +502,9 @@ export default function SessionCard({
                     key={exercise.id}
                     exercise={exercise}
                     value={actualExercises[index] ?? { name: exercise.name }}
-                    onChange={(field, value) => updateExercise(index, field, value)}
+                    onChange={(field, value) =>
+                      updateExercise(index, field, value)
+                    }
                   />
                 ))}
               </div>
@@ -431,7 +579,10 @@ export default function SessionCard({
                     type="text"
                     value={bjjDetails.technique_focus ?? ""}
                     onChange={(e) =>
-                      setBjjDetails((prev) => ({ ...prev, technique_focus: e.target.value }))
+                      setBjjDetails((prev) => ({
+                        ...prev,
+                        technique_focus: e.target.value,
+                      }))
                     }
                     className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
                   />
@@ -488,7 +639,9 @@ export default function SessionCard({
             ) : null}
 
             {paceLabel ? (
-              <p className="mt-3 text-sm text-emerald-300">Estimated pace: {paceLabel}</p>
+              <p className="mt-3 text-sm text-emerald-300">
+                Estimated pace: {paceLabel}
+              </p>
             ) : null}
 
             <label className="mt-4 block text-sm text-slate-300">
@@ -504,15 +657,65 @@ export default function SessionCard({
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={saveSession}
+                onClick={() => saveSession(false)}
+                disabled={saving}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+              >
+                {saving ? "Saving..." : "Save draft"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => saveSession(true)}
                 disabled={saving}
                 className="rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-slate-200 disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save session"}
+                {saving ? "Saving..." : "Complete & save"}
               </button>
 
-              {message ? <p className="text-sm text-slate-400">{message}</p> : null}
+              {message ? (
+                <p className="text-sm text-slate-400">{message}</p>
+              ) : null}
             </div>
+
+            {strokeLoading ? (
+              <p className="mt-3 text-sm text-slate-400">
+                Generating spoken strokes...
+              </p>
+            ) : null}
+
+            {strokeError ? (
+              <p className="mt-3 text-sm text-orange-300">{strokeError}</p>
+            ) : null}
+
+            {strokes.length ? (
+              <div className="mt-4 rounded-[18px] border border-emerald-300/15 bg-emerald-300/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-emerald-100">
+                    Post-session reinforcement
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => speakStrokes(strokes)}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200"
+                  >
+                    Play again
+                  </button>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {strokes.map((stroke, index) => (
+                    <p
+                      key={`${session.id}-stroke-${index}`}
+                      className="text-sm text-slate-200"
+                    >
+                      {stroke}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <PhotoUploader
